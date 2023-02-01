@@ -33,6 +33,15 @@ static void die(const char *fmt, ...) {
 #define SDL_DIE(x)                                                             \
   die(__FILE__ ":%d: Could not initialize SDL " STRINGIFY(x) ": %s\n",         \
       __LINE__, SDL_GetError())
+#ifndef max
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
+#define clamped(a, b, c) max(b, min(a, c))
 
 // Initializes hidden window! You must make it visible after intialization.
 static struct SDL_Window *initialize_window(const char *name, int w, int h) {
@@ -54,11 +63,15 @@ static struct SDL_Window *initialize_window(const char *name, int w, int h) {
 static struct SDL_Renderer *initialize_renderer(struct SDL_Window *window) {
   struct SDL_Renderer *renderer;
 
-  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+  renderer = SDL_CreateRenderer(window, -1, 0);
   if (NULL == renderer)
     SDL_DIE(renderer);
 
   return renderer;
+}
+
+static uint32_t rgb_to_abgr(uint32_t rgb, uint8_t a) {
+  return (a << 24) + __bswap_32(rgb << 8);
 }
 
 static void install_zoomer(struct Zoomer *zoomer, const char *name, int w,
@@ -114,9 +127,7 @@ static void install_zoomer(struct Zoomer *zoomer, const char *name, int w,
       unsigned long pixel;
 
       pixel = XGetPixel(image, col, row);
-      // Swap first with last color channel and add alpha.
-      // Quicker (to write) way of changing color mask.
-      zoomer->image[i++] = 0xff000000 + __bswap_32(pixel << 8);
+      zoomer->image[i++] = rgb_to_abgr(pixel, 0xff);
     }
   }
   XFree(image);
@@ -139,7 +150,12 @@ int main(void) {
   struct Zoomer zoomer;
   SDL_Texture *buffer;
   int pitch;
-
+  SDL_Rect rect;
+  int px;
+  int py;
+  int w;
+  int h;
+  int i;
   // Initiate isntallation
   install_zoomer(&zoomer, "Zoomer", FULLSCREEN_W, FULLSCREEN_H);
 
@@ -153,36 +169,73 @@ int main(void) {
   fclose(file);
 #endif
 
+  // Allocate buffer
   buffer = SDL_CreateTexture(
       zoomer.renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
       zoomer.root_attributes.width, zoomer.root_attributes.height);
   if (NULL == buffer)
     SDL_DIE(buffer);
 
+  // Write image to buffer
   pitch = zoomer.root_attributes.width * (sizeof *zoomer.image);
   if (SDL_UpdateTexture(buffer, NULL, (const void *)zoomer.image, pitch) != 0)
     SDL_DIE(buffer);
 
+  // Image may be bigger than the screen we're drawing to! Example, you have
+  // 2 monitors. For that reason, we're going to allow dragging with alt and
+  // click.
+  // TODO: this should also apply for zooming
+
+  // Get window width and height to clip rect and calculate boundaries of
+  // dragging
+  SDL_GetWindowSize(zoomer.window, &w, &h);
+
+  // Default rectangle
+  rect = (SDL_Rect){.x = 0, .y = 0, .w = w, .h = h};
+
+  // Prepare variables for dragging
+  px = -1;
+  py = -1;
+
   // Application main loop
-  for (;;) {
+  for (i = 0;; i++) {
     SDL_Event e;
+    int mx;
+    int my;
+    Uint32 b;
 
     if (SDL_PollEvent(&e)) {
-      if ((e.type == SDL_QUIT) ||
-          (e.type = SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN))
-        break;
+      //  if ((e.type == SDL_QUIT) ||
+      //(e.type = SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE))
+      // break;
     }
 
+    b = SDL_GetMouseState(&mx, &my);
+
+    // When dragging, move around the rectangle within set bounds.
+    if (SDL_BUTTON(b) == SDL_BUTTON_LEFT && (px != -1) && (py != -1)) {
+      rect.x = clamped(rect.x - (mx - px), 0,
+                       (zoomer.root_attributes.width - w) - 1);
+      rect.y = clamped(rect.y - (my - py), 0,
+                       (zoomer.root_attributes.height - h) - 1);
+    }
+
+    SDL_RenderClear(zoomer.renderer);
     // Write the buffer to renderer
-    SDL_RenderCopy(zoomer.renderer, buffer, NULL, NULL);
+    SDL_RenderCopy(zoomer.renderer, buffer, &rect, NULL);
 
     // Draw line on renderer
     SDL_SetRenderDrawColor(zoomer.renderer, 255, 0, 255, 255);
-    SDL_RenderDrawLine(zoomer.renderer, 0, 0, 1920, 1080);
+    SDL_RenderDrawLine(zoomer.renderer, 0, 0, i % 1920, 1080);
 
     SDL_RenderPresent(zoomer.renderer);
+
+    // Update previous mouse position
+    px = mx;
+    py = my;
   }
 
+  // Get rid of buffer
   SDL_DestroyTexture(buffer);
 
   // Initiate cleaning up
