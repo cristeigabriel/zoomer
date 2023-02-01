@@ -1,1 +1,1 @@
-gcc main.c -lSDL2 -lX11 -Wall -Wextra -Wpedantic -O3
+gcc main.c -lSDL2 -lX11 -lm -Wall -Wextra -Wpedantic -O3

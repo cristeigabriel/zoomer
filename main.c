@@ -11,6 +11,8 @@
 #define FULLSCREEN_W 0
 #define FULLSCREEN_H 0
 
+#define ZOOM_TIME (2.f)
+
 struct Zoomer {
   struct SDL_Window *window;
   XWindowAttributes root_attributes;
@@ -42,6 +44,7 @@ static void die(const char *fmt, ...) {
 #endif
 
 #define clamped(a, b, c) max(b, min(a, c))
+#define lerp(a, b, t) (a) + (t) * ((b) - (a))
 
 // Initializes hidden window! You must make it visible after intialization.
 static struct SDL_Window *initialize_window(const char *name, int w, int h) {
@@ -152,12 +155,19 @@ int main(void) {
   int pitch;
   struct SDL_Rect stat;
   struct SDL_Rect dyn;
+  int gzw;
+  int gzh;
   int zw;
   int zh;
   int px;
   int py;
   int w;
   int h;
+  Uint64 now;
+  Uint64 last;
+  float dt;
+  float zt;
+  float ezt;
   int i;
 
   // Initiate isntallation
@@ -201,9 +211,19 @@ int main(void) {
   px = -1;
   py = -1;
 
-  // Prepare variables for dynamic rectangle
+  // Prepare variables for dynamic rectangle, goal zoom and current zoom
+  gzw = 0;
+  gzh = 0;
   zw = 0;
   zh = 0;
+  // Zoom time, end zoom time
+  zt = 0.f;
+  ezt = 0.f;
+
+  // Prepare delta time
+  now = SDL_GetPerformanceCounter();
+  last = 0;
+  dt = 0.f;
 
   // Application main loop
   for (i = 0;; i++) {
@@ -218,10 +238,18 @@ int main(void) {
         break;
 
       if (e.type == SDL_MOUSEWHEEL) {
-        zw = clamped(zw + e.wheel.y * (w * 0.01), 0, w - 3);
-        zh = clamped(zh + e.wheel.y * (h * 0.01), 0, h - 3);
+        gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w - 3);
+        gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h - 3);
+
+        // Store time and expected time for zoom to be finalized
+        zt = dt;
+        ezt = zt + ZOOM_TIME;
       }
     }
+
+    // Lerp towards goal zoom
+    zw = lerp(zw, gzw, 1.f - fmaxf(0, (ezt - dt) / ZOOM_TIME));
+    zh = lerp(zh, gzh, 1.f - fmaxf(0, (ezt - dt) / ZOOM_TIME));
 
     b = SDL_GetMouseState(&mx, &my);
 
@@ -246,6 +274,11 @@ int main(void) {
     SDL_RenderCopy(zoomer.renderer, buffer, &dyn, NULL);
 
     SDL_RenderPresent(zoomer.renderer);
+
+    // Update delta time
+    last = now;
+    now = SDL_GetPerformanceCounter();
+    dt += (float)((now - last) / (float)SDL_GetPerformanceFrequency());
 
     // Update previous mouse position
     px = mx;
