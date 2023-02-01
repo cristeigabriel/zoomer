@@ -1,5 +1,5 @@
 # zoomer
-A screenshot and zoom-in tool inspired by Tsoding's 'boomer'.
+A screenshot and zoom-in tool for Linux inspired by Tsoding's 'boomer'. Also allows dragging the capture if you have multiple monitors, as shown below:
 
 # Showcase
 ![](static/showcase.gif)

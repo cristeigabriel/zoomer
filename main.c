@@ -195,11 +195,6 @@ int main(void) {
   if (SDL_UpdateTexture(buffer, NULL, (const void *)zoomer.image, pitch) != 0)
     SDL_DIE(buffer);
 
-  // Image may be bigger than the screen we're drawing to! Example, you have
-  // 2 monitors. For that reason, we're going to allow dragging with alt and
-  // click.
-  // TODO: this should also apply for zooming
-
   // Get window width and height to clip rect and calculate boundaries of
   // dragging
   SDL_GetWindowSize(zoomer.window, &w, &h);
