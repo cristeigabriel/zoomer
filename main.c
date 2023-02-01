@@ -150,12 +150,16 @@ int main(void) {
   struct Zoomer zoomer;
   SDL_Texture *buffer;
   int pitch;
-  SDL_Rect rect;
+  struct SDL_Rect stat;
+  struct SDL_Rect dyn;
+  int zw;
+  int zh;
   int px;
   int py;
   int w;
   int h;
   int i;
+
   // Initiate isntallation
   install_zoomer(&zoomer, "Zoomer", FULLSCREEN_W, FULLSCREEN_H);
 
@@ -191,11 +195,15 @@ int main(void) {
   SDL_GetWindowSize(zoomer.window, &w, &h);
 
   // Default rectangle
-  rect = (SDL_Rect){.x = 0, .y = 0, .w = w, .h = h};
+  stat = (SDL_Rect){.x = 0, .y = 0, .w = w, .h = h};
 
   // Prepare variables for dragging
   px = -1;
   py = -1;
+
+  // Prepare variables for dynamic rectangle
+  zw = 0;
+  zh = 0;
 
   // Application main loop
   for (i = 0;; i++) {
@@ -205,28 +213,37 @@ int main(void) {
     Uint32 b;
 
     if (SDL_PollEvent(&e)) {
-      //  if ((e.type == SDL_QUIT) ||
-      //(e.type = SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE))
-      // break;
+      if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
+                                 e.window.event == SDL_WINDOWEVENT_CLOSE))
+        break;
+
+      if (e.type == SDL_MOUSEWHEEL) {
+        zw = clamped(zw + e.wheel.y * (w * 0.01), 0, w - 3);
+        zh = clamped(zh + e.wheel.y * (h * 0.01), 0, h - 3);
+      }
     }
 
     b = SDL_GetMouseState(&mx, &my);
 
-    // When dragging, move around the rectangle within set bounds.
+    // When dragging, move around the focus area
     if (SDL_BUTTON(b) == SDL_BUTTON_LEFT && (px != -1) && (py != -1)) {
-      rect.x = clamped(rect.x - (mx - px), 0,
-                       (zoomer.root_attributes.width - w) - 1);
-      rect.y = clamped(rect.y - (my - py), 0,
-                       (zoomer.root_attributes.height - h) - 1);
+      stat.x -= (mx - px);
+      stat.y -= (my - py);
     }
 
-    SDL_RenderClear(zoomer.renderer);
-    // Write the buffer to renderer
-    SDL_RenderCopy(zoomer.renderer, buffer, &rect, NULL);
+    // Make sure static rectangle is clamped
+    stat.x = clamped(stat.x, -zw, (zoomer.root_attributes.width - w) - 1);
+    stat.y = clamped(stat.y, -zh, (zoomer.root_attributes.height - h) - 1);
 
-    // Draw line on renderer
-    SDL_SetRenderDrawColor(zoomer.renderer, 255, 0, 255, 255);
-    SDL_RenderDrawLine(zoomer.renderer, 0, 0, i % 1920, 1080);
+    SDL_RenderClear(zoomer.renderer);
+
+    // Write the buffer to renderer
+    dyn = stat;
+    dyn.x += zw;
+    dyn.y += zh;
+    dyn.w -= zw;
+    dyn.h -= zh;
+    SDL_RenderCopy(zoomer.renderer, buffer, &dyn, NULL);
 
     SDL_RenderPresent(zoomer.renderer);
 
