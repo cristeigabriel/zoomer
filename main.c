@@ -238,8 +238,8 @@ int main(void) {
         break;
 
       if (e.type == SDL_MOUSEWHEEL) {
-        gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w - 3);
-        gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h - 3);
+        gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w / 2 - 3);
+        gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h / 2 - 3);
 
         // Store time and expected time for zoom to be finalized
         zt = dt;
@@ -260,8 +260,8 @@ int main(void) {
     }
 
     // Make sure static rectangle is clamped
-    stat.x = clamped(stat.x, -zw, (zoomer.root_attributes.width - w) - 1);
-    stat.y = clamped(stat.y, -zh, (zoomer.root_attributes.height - h) - 1);
+    stat.x = clamped(stat.x, -zw, (zoomer.root_attributes.width - w) + zw - 1);
+    stat.y = clamped(stat.y, -zh, (zoomer.root_attributes.height - h) + zh - 1);
 
     SDL_RenderClear(zoomer.renderer);
 
@@ -269,8 +269,8 @@ int main(void) {
     dyn = stat;
     dyn.x += zw;
     dyn.y += zh;
-    dyn.w -= zw;
-    dyn.h -= zh;
+    dyn.w -= zw * 2;
+    dyn.h -= zh * 2;
     SDL_RenderCopy(zoomer.renderer, buffer, &dyn, NULL);
 
     SDL_RenderPresent(zoomer.renderer);
