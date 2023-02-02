@@ -4,6 +4,7 @@
 #include <X11/Xutil.h>
 #include <byteswap.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #define DEBUG_IMAGE 0
@@ -162,6 +163,25 @@ destroy_zoomer(struct Zoomer* zoomer)
 	SDL_DestroyRenderer(zoomer->renderer);
 }
 
+// If we decide to add some sort of cursor.
+#if 0
+static void
+snap_to_grid(const SDL_Rect* stat, const SDL_Rect* dyn, int mx, int my, int* x,
+						 int* y, int* w, int* h)
+{
+	// Calculate width and height to fit on grid
+	*w = stat->w / dyn->w;
+	*h = stat->h / dyn->h;
+
+	// Snap to nearest multiple of w, h
+	*x = (*w) * round(mx / (*w));
+	*y = (*h) * round(my / (*h));
+
+	printf("%d %d %d %d | %d %d %d %d\n", stat->x, stat->y, stat->w, stat->h,
+				 dyn->x, dyn->y, dyn->w, dyn->h);
+}
+#endif
+
 int
 main(int argc, char* argv[])
 {
@@ -185,6 +205,7 @@ main(int argc, char* argv[])
 	float						ezt;
 	float						p;
 	int							i;
+	bool						grid;
 
 	for (i = 1; i < argc; i++) {
 		const char* arg = argv[i];
@@ -257,22 +278,35 @@ main(int argc, char* argv[])
 	zt	= 0.f;
 	ezt = 0.f;
 
+	// Have grid disabled by default
+	grid = false;
+
 	// Prepare delta time
 	now	 = SDL_GetPerformanceCounter();
 	last = 0;
 	dt	 = 0.f;
 
 	// Application main loop
-	for (i = 0;; i++) {
+	for (;;) {
 		SDL_Event e;
 		int				mx;
 		int				my;
 		Uint32		b;
+		int				dw;
+		int				dh;
 
 		if (SDL_PollEvent(&e)) {
 			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
 																 e.window.event == SDL_WINDOWEVENT_CLOSE))
 				break;
+
+			if (e.type == SDL_KEYUP) {
+				switch (e.key.keysym.sym) {
+					case SDLK_g: {
+						grid = !grid;
+					} break;
+				}
+			}
 
 			if (e.type == SDL_MOUSEWHEEL) {
 				gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w / 2 - 3);
@@ -310,6 +344,27 @@ main(int argc, char* argv[])
 		dyn.w -= zw * 2;
 		dyn.h -= zh * 2;
 		SDL_RenderCopy(zoomer.renderer, buffer, &dyn, NULL);
+
+		if (grid) {
+			// Do grid view
+			dw = stat.w / dyn.w;
+			dh = stat.h / dyn.h;
+
+			// NOTE: should we even batch this manually? I don't see
+			// any performance issues. It should not even be a problem, like,
+			// ever, if I add some minimum value kinda-thing as to display
+			// the grid
+
+			for (i = 1; i < (stat.w / dw); i++) {
+				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
+				SDL_RenderDrawLine(zoomer.renderer, (i * dw), 0, (i * dw), h);
+			}
+
+			for (i = 1; i < (stat.h / dh); i++) {
+				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
+				SDL_RenderDrawLine(zoomer.renderer, 0, (i * dh), w, (i * dh));
+			}
+		}
 
 		SDL_RenderPresent(zoomer.renderer);
 
