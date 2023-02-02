@@ -14,6 +14,13 @@ $: sudo chmod +x /usr/bin/zoomer
 # How to use
 Run `zoomer -h`
 
+# Controls
+|Key|Usage|
+|:--|:--|
+|Mouse wheel up/down|Scrolls up/down|
+|g|Toggles grid view|
+|Click + drag left/right/up/down|Drags around focus area|
+
 # Dependencies
 - libsdl2
 - libx11
