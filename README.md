@@ -17,8 +17,9 @@ Run `zoomer -h`
 # Controls
 |Key|Usage|
 |:--|:--|
-|Mouse wheel up/down|Scrolls up/down|
 |g|Toggles grid view|
+|Alt + Mouse wheel up/down|Increases/decreases grid alpha|
+|Mouse wheel up/down|Scrolls up/down|
 |Click + drag left/right/up/down|Drags around focus area|
 
 # Dependencies

@@ -13,8 +13,10 @@
 #define FULLSCREEN_H 0
 
 #define ZOOM_TIME (2.f)
+#define GRID_DEFAULT_ALPHA (30)
 
-static float g_zoom_time = ZOOM_TIME;
+static float g_zoom_time	= ZOOM_TIME;
+static int	 g_grid_alpha = GRID_DEFAULT_ALPHA;
 
 struct Zoomer {
 	struct SDL_Window*	 window;
@@ -206,6 +208,7 @@ main(int argc, char* argv[])
 	float						p;
 	int							i;
 	bool						grid;
+	bool						altmod;
 
 	for (i = 1; i < argc; i++) {
 		const char* arg = argv[i];
@@ -281,6 +284,9 @@ main(int argc, char* argv[])
 	// Have grid disabled by default
 	grid = false;
 
+	// Altmod
+	altmod = false;
+
 	// Prepare delta time
 	now	 = SDL_GetPerformanceCounter();
 	last = 0;
@@ -305,16 +311,31 @@ main(int argc, char* argv[])
 					case SDLK_g: {
 						grid = !grid;
 					} break;
+
+					case SDLK_LALT: {
+						altmod = false;
+					} break;
+				}
+			} else if (e.type == SDL_KEYDOWN) {
+				switch (e.key.keysym.sym) {
+					case SDLK_LALT: {
+						altmod = true;
+					} break;
 				}
 			}
 
 			if (e.type == SDL_MOUSEWHEEL) {
-				gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w / 2 - 3);
-				gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h / 2 - 3);
+				// Zoom in
+				if (!altmod) {
+					gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w / 2 - 3);
+					gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h / 2 - 3);
 
-				// Store time and expected time for zoom to be finalized
-				zt	= dt;
-				ezt = zt + g_zoom_time;
+					// Store time and expected time for zoom to be finalized
+					zt	= dt;
+					ezt = zt + g_zoom_time;
+				} else { // Grid alpha
+					g_grid_alpha = clamped(g_grid_alpha + e.wheel.y * 10, 10, 120);
+				}
 			}
 		}
 
@@ -355,14 +376,14 @@ main(int argc, char* argv[])
 			// ever, if I add some minimum value kinda-thing as to display
 			// the grid
 
+			SDL_SetRenderDrawBlendMode(zoomer.renderer, SDL_BLENDMODE_BLEND);
+			SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, g_grid_alpha);
 			for (i = 1; i < (stat.w / (int)dw); i++) {
-				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
 				SDL_RenderDrawLineF(zoomer.renderer, ((float)i * dw), 0.f,
 														(i * (float)dw), (float)h);
 			}
 
 			for (i = 1; i < (stat.h / (int)dh); i++) {
-				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
 				SDL_RenderDrawLineF(zoomer.renderer, 0.f, ((float)i * dh), (float)w,
 														((float)i * dh));
 			}
