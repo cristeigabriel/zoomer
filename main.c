@@ -292,8 +292,8 @@ main(int argc, char* argv[])
 		int				mx;
 		int				my;
 		Uint32		b;
-		int				dw;
-		int				dh;
+		float			dw;
+		float			dh;
 
 		if (SDL_PollEvent(&e)) {
 			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
@@ -347,22 +347,24 @@ main(int argc, char* argv[])
 
 		if (grid) {
 			// Do grid view
-			dw = stat.w / dyn.w;
-			dh = stat.h / dyn.h;
+			dw = (float)stat.w / (float)dyn.w;
+			dh = (float)stat.h / (float)dyn.h;
 
 			// NOTE: should we even batch this manually? I don't see
 			// any performance issues. It should not even be a problem, like,
 			// ever, if I add some minimum value kinda-thing as to display
 			// the grid
 
-			for (i = 1; i < (stat.w / dw); i++) {
+			for (i = 1; i < (stat.w / (int)dw); i++) {
 				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
-				SDL_RenderDrawLine(zoomer.renderer, (i * dw), 0, (i * dw), h);
+				SDL_RenderDrawLineF(zoomer.renderer, ((float)i * dw), 0.f,
+														(i * (float)dw), (float)h);
 			}
 
-			for (i = 1; i < (stat.h / dh); i++) {
+			for (i = 1; i < (stat.h / (int)dh); i++) {
 				SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 255);
-				SDL_RenderDrawLine(zoomer.renderer, 0, (i * dh), w, (i * dh));
+				SDL_RenderDrawLineF(zoomer.renderer, 0.f, ((float)i * dh), (float)w,
+														((float)i * dh));
 			}
 		}
 
