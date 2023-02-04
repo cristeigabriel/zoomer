@@ -12,7 +12,7 @@
 #define FULLSCREEN_W 0
 #define FULLSCREEN_H 0
 
-#define ZOOM_TIME (2.f)
+#define ZOOM_TIME (0.3f)
 #define GRID_DEFAULT_ALPHA (30)
 
 static float g_zoom_time	= ZOOM_TIME;
@@ -101,7 +101,9 @@ install_zoomer(struct Zoomer* zoomer, const char* name, int w, int h)
 	int									 col;
 	unsigned long				 i;
 
+#ifdef _DEBUG
 	printf("Installing Zoomer...\n");
+#endif
 
 	// Use x11 for backend
 	SDL_SetHint("SDL_VIDEODRIVER", "x11");
@@ -159,30 +161,32 @@ install_zoomer(struct Zoomer* zoomer, const char* name, int w, int h)
 static void
 destroy_zoomer(struct Zoomer* zoomer)
 {
+#ifdef _DEBUG
 	printf("Destroying Zoomer context...\n");
+#endif
 
 	SDL_DestroyWindow(zoomer->window);
 	SDL_DestroyRenderer(zoomer->renderer);
 }
 
-// If we decide to add some sort of cursor.
-#if 0
+static float
+nearest_multiple(float x, float m)
+{
+	return m * floorf(x / m);
+}
+
 static void
-snap_to_grid(const SDL_Rect* stat, const SDL_Rect* dyn, int mx, int my, int* x,
-						 int* y, int* w, int* h)
+snap_to_grid(const SDL_Rect* stat, const SDL_Rect* dyn, int mx, int my,
+						 float* x, float* y, float* w, float* h)
 {
 	// Calculate width and height to fit on grid
-	*w = stat->w / dyn->w;
-	*h = stat->h / dyn->h;
+	*w = (float)stat->w / (float)dyn->w;
+	*h = (float)stat->h / (float)dyn->h;
 
 	// Snap to nearest multiple of w, h
-	*x = (*w) * round(mx / (*w));
-	*y = (*h) * round(my / (*h));
-
-	printf("%d %d %d %d | %d %d %d %d\n", stat->x, stat->y, stat->w, stat->h,
-				 dyn->x, dyn->y, dyn->w, dyn->h);
+	*x = nearest_multiple((float)mx, *w);
+	*y = nearest_multiple((float)my, *h);
 }
-#endif
 
 int
 main(int argc, char* argv[])
@@ -192,6 +196,7 @@ main(int argc, char* argv[])
 	int							pitch;
 	struct SDL_Rect stat;
 	struct SDL_Rect dyn;
+	int							disps;
 	int							gzw;
 	int							gzh;
 	int							zw;
@@ -209,6 +214,10 @@ main(int argc, char* argv[])
 	int							i;
 	bool						grid;
 	bool						altmod;
+	struct {
+		float y;
+		float p;
+	} hold;
 
 	for (i = 1; i < argc; i++) {
 		const char* arg = argv[i];
@@ -237,7 +246,7 @@ main(int argc, char* argv[])
 	}
 
 	// Initiate isntallation
-	install_zoomer(&zoomer, "Zoomer", FULLSCREEN_W, FULLSCREEN_H);
+	install_zoomer(&zoomer, "zoomer", FULLSCREEN_W, FULLSCREEN_H);
 
 #if DEBUG_IMAGE == 1
 	FILE* file;
@@ -265,6 +274,10 @@ main(int argc, char* argv[])
 	// dragging
 	SDL_GetWindowSize(zoomer.window, &w, &h);
 
+	// Get number of screen displays
+	if ((disps = SDL_GetNumVideoDisplays()) < 0)
+		SDL_DIE(disps);
+
 	// Default rectangle
 	stat = (SDL_Rect){.x = 0, .y = 0, .w = w, .h = h};
 
@@ -287,6 +300,10 @@ main(int argc, char* argv[])
 	// Altmod
 	altmod = false;
 
+	// Holdline, AKA when you press shift, it remembers the row
+	hold.y = -1.f;
+	hold.p = -1.f;
+
 	// Prepare delta time
 	now	 = SDL_GetPerformanceCounter();
 	last = 0;
@@ -294,12 +311,13 @@ main(int argc, char* argv[])
 
 	// Application main loop
 	for (;;) {
-		SDL_Event e;
-		int				mx;
-		int				my;
-		Uint32		b;
-		float			dw;
-		float			dh;
+		SDL_Event				 e;
+		int							 mx;
+		int							 my;
+		Uint32					 b;
+		float						 dw;
+		float						 dh;
+		struct SDL_FRect rect;
 
 		if (SDL_PollEvent(&e)) {
 			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
@@ -322,13 +340,32 @@ main(int argc, char* argv[])
 						altmod = true;
 					} break;
 				}
+
+				if (e.type == SDL_KEYDOWN && e.key.keysym.sym > SDLK_0 &&
+						e.key.keysym.sym <= SDLK_9) {
+					int dispidx;
+
+					dispidx = e.key.keysym.sym - SDLK_0;
+
+					if (dispidx <= disps) {
+						if (SDL_GetDisplayBounds(dispidx - 1, &stat) != 0)
+							SDL_DIE(stat);
+
+						// Don't fit to screen, actually
+						stat.w = w;
+						stat.h = h;
+
+						// Reset zoom
+						zw = gzw = zh = gzh = 0;
+					}
+				}
 			}
 
 			if (e.type == SDL_MOUSEWHEEL) {
 				// Zoom in
 				if (!altmod) {
-					gzw = clamped(gzw + e.wheel.y * (w * 0.03), 0, w / 2 - 3);
-					gzh = clamped(gzh + e.wheel.y * (h * 0.03), 0, h / 2 - 3);
+					gzw = clamped(gzw + e.wheel.y * (stat.w * 0.03), 0, stat.w / 2 - 3);
+					gzh = clamped(gzh + e.wheel.y * (stat.h * 0.03), 0, stat.h / 2 - 3);
 
 					// Store time and expected time for zoom to be finalized
 					zt	= dt;
@@ -341,22 +378,29 @@ main(int argc, char* argv[])
 
 		// Lerp towards goal zoom
 		p	 = fmaxf(0, (ezt - dt) / g_zoom_time);
-		zw = lerp(zw, gzw, 1.f - p);
-		zh = lerp(zh, gzh, 1.f - p);
+		zw = lerp(zw, gzw, sinf(1.f - p));
+		zh = lerp(zh, gzh, sinf(1.f - p));
+
+		if (hold.p != p)
+			hold.y = -1.f;
+
+		hold.p = p;
 
 		b = SDL_GetMouseState(&mx, &my);
 
 		// When dragging, move around the focus area
-		if (SDL_BUTTON(b) == SDL_BUTTON_LEFT && (px != -1) && (py != -1)) {
+		if (SDL_BUTTON(b) == (1 << SDL_BUTTON_RIGHT) && (px != -1) && (py != -1)) {
 			stat.x -= (mx - px);
 			stat.y -= (my - py);
+
+			hold.y = -1.f;
 		}
 
 		// Make sure static rectangle is clamped
-		stat.x = clamped(stat.x, -zw, (zoomer.root_attributes.width - w) + zw - 1);
-		stat.y = clamped(stat.y, -zh, (zoomer.root_attributes.height - h) + zh - 1);
-
-		SDL_RenderClear(zoomer.renderer);
+		stat.x =
+			clamped(stat.x, -zw, (zoomer.root_attributes.width - stat.w) + zw - 1);
+		stat.y =
+			clamped(stat.y, -zh, (zoomer.root_attributes.height - stat.h) + zh - 1);
 
 		// Write the buffer to renderer
 		dyn = stat;
@@ -365,6 +409,9 @@ main(int argc, char* argv[])
 		dyn.w -= zw * 2;
 		dyn.h -= zh * 2;
 		SDL_RenderCopy(zoomer.renderer, buffer, &dyn, NULL);
+
+		// Snap mouse to grid
+		snap_to_grid(&stat, &dyn, mx, my, &rect.x, &rect.y, &rect.w, &rect.h);
 
 		if (grid) {
 			// Do grid view
@@ -380,16 +427,37 @@ main(int argc, char* argv[])
 			SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, g_grid_alpha);
 			for (i = 1; i < (stat.w / (int)dw); i++) {
 				SDL_RenderDrawLineF(zoomer.renderer, ((float)i * dw), 0.f,
-														(i * (float)dw), (float)h);
+														(i * (float)dw), (float)stat.h);
 			}
 
 			for (i = 1; i < (stat.h / (int)dh); i++) {
-				SDL_RenderDrawLineF(zoomer.renderer, 0.f, ((float)i * dh), (float)w,
-														((float)i * dh));
+				SDL_RenderDrawLineF(zoomer.renderer, 0.f, ((float)i * dh),
+														(float)stat.w, ((float)i * dh));
 			}
+
+// Don't run for now since it's not done
+#if 0
+			SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, 70);
+
+			SDL_FRect cursor = rect;
+
+			if (hold.y != -1.f)
+				cursor.y = hold.y;
+
+			SDL_RenderFillRectF(zoomer.renderer, &cursor);
+#endif
 		}
 
 		SDL_RenderPresent(zoomer.renderer);
+
+		// Post-render events
+		if (e.key.keysym.sym == SDLK_LSHIFT) {
+			if (e.type == SDL_KEYDOWN && hold.y == -1.f) {
+				hold.y = rect.y;
+			} else if (e.type == SDL_KEYUP) {
+				hold.y = -1.f;
+			}
+		}
 
 		// Update delta time
 		last = now;

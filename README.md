@@ -20,7 +20,8 @@ Run `zoomer -h`
 |g|Toggles grid view|
 |Alt + Mouse wheel up/down|Increases/decreases grid alpha|
 |Mouse wheel up/down|Scrolls up/down|
-|Click + drag left/right/up/down|Drags around focus area|
+|Right click + drag left/right/up/down|Drags around focus area|
+|1-9|Swap focus area to n-th monitor|
 
 # Dependencies
 - libsdl2
