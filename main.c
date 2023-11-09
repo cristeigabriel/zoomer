@@ -69,6 +69,9 @@ initialize_window(const char* name, int w, int h)
 	if (NULL == window)
 		SDL_DIE(window);
 
+	/* Investigating ways to get the currently active monitor */
+//	printf("SDL_GetwindowDisplayIndex: %i", 	SDL_GetWindowDisplayIndex(window));
+
 	return window;
 }
 
@@ -518,7 +521,7 @@ main(int argc, char* argv[])
 usage:
 	printf("USAGE: %s <options>\n"
 				 "-h         -- Displays this help and exits.\n\n"
-				 "-t <float> -- Specifies zoom time.\n",
+				 "-t <float> -- Specifies zoom time.\n"
 				 "How to configure:\n\n"
 				 "config.h is where your personal settings are stored. If config.h"
 				 "doesn't exist, running \'sudo ./build.sh\' will generate a new"
