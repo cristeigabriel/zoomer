@@ -3,6 +3,9 @@
 
 #define DRAG_NKEYSETS 2
 
+#define ZOOM_DEFAULT_TIME  (0.3f)
+#define DEFAULT_GRID_ALPHA 30
+
 const float g_zoom_speed = 0.05f;
 
 const float g_drag_speed_x = 1.00f;

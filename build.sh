@@ -21,7 +21,7 @@ if [ ! -f "config.h" ]; then
 
 	echo "Copying config.def.h to config.h. Please modify config.h to your liking."
 	cp config.def.h config.h
-	chmod +rwx config.h
+	chmod +rw config.h
 fi
 
 gcc main.c -lSDL2 -lX11 -lm -Wall -Wextra -Wpedantic -fanalyzer -O3
