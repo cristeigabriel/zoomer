@@ -15,11 +15,8 @@
 #define FULLSCREEN_W 0
 #define FULLSCREEN_H 0
 
-#define ZOOM_TIME (0.3f)
-#define GRID_DEFAULT_ALPHA (30)
-
-static float g_zoom_time	= ZOOM_TIME;
-static int	 g_grid_alpha = GRID_DEFAULT_ALPHA;
+static float g_zoom_time  = ZOOM_DEFAULT_TIME;
+static int   g_grid_alpha = DEFAULT_GRID_ALPHA;
 
 struct Zoomer {
 	struct SDL_Window*	 window;
@@ -352,34 +349,11 @@ main(int argc, char* argv[])
 					case SDLK_q: {
 						quit = true;
 				     	} break;
-
-#if 0
-					/* -- Keyboard Navigation -- */
-					/* -- Up -- */
-					case NAV_KEY_U1:
-					case NAV_KEY_U2: {
-						drag_axis(&stat.y, py + 1, py, g_nav_inc_y);
-				     	} break;
-					/* -- Down -- */
-					case NAV_KEY_D1:
-					case NAV_KEY_D2: {
-						drag_axis(&stat.y, py - 1, py, g_nav_inc_y);
-				     	} break;
-					/* -- Left -- */
-					case NAV_KEY_L1:
-					case NAV_KEY_L2: {
-						drag_axis(&stat.x, px + 1, px, g_nav_inc_x);
-				     	} break;
-					/* -- Right -- */
-					case NAV_KEY_R1:
-					case NAV_KEY_R2: {
-						drag_axis(&stat.x, px - 1, px, g_nav_inc_x);
-				     	} break;
-#endif
 				}
-				/* This could probably be simplified (see switch statement above),
-				 * but this does make customization far easier for the end user,
-				 * and this code is still fairly obvious) */
+
+				/* This could probably be simplified, but this does make 
+				 * customization far easier for the end user, which should be the
+				 * top priority. */
 				for (int x = 0; x < 4; ++x) {
 					for (int y = 0; y < DRAG_NKEYSETS; ++y) {
 						if (e.key.keysym.sym == drag_keys[y][x]) {
@@ -543,8 +517,13 @@ main(int argc, char* argv[])
 
 usage:
 	printf("USAGE: %s <options>\n"
-				 "-h         -- Displays this help and exits.\n"
+				 "-h         -- Displays this help and exits.\n\n"
 				 "-t <float> -- Specifies zoom time.\n",
+				 "How to configure:\n\n"
+				 "config.h is where your personal settings are stored. If config.h"
+				 "doesn't exist, running \'sudo ./build.sh\' will generate a new"
+				 "one using config.def.h as a template. After modifying, run"
+				 "\'sudo ./build.sh\' to rebuild and reinstall Zoomer.",
 				 argv[0]);
 
 	return EXIT_SUCCESS;
