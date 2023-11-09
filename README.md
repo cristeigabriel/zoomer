@@ -8,7 +8,6 @@ A screenshot and zoom-in tool for Linux inspired by Tsoding's 'boomer'. Also all
 ```
 $: sudo ./build.sh
 ```
-
 # How to use
 Run `zoomer -h`
 
@@ -26,6 +25,11 @@ Run `zoomer -h`
 # Dependencies
 - libsdl2
 - libx11
+
+# To-Do
+- [ ] External config file format, so rebuild isn't necessary after modification.
+- [ ] Start Zoomer showing the currently active monitor.
+- [ ] Zoom where the mouse is, instead of the middle of the screen.
 
 # Clarifications
 This is a modified version of https://github.com/cristeigabriel/zoomer that I made for personal use.
