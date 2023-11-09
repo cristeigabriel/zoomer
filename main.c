@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+/* -- CUSTOM CONFIGURATION -- */
+#include "config.h"
+
 #define DEBUG_IMAGE 0
 
 #define FULLSCREEN_W 0
@@ -188,6 +191,12 @@ snap_to_grid(const SDL_Rect* stat, const SDL_Rect* dyn, int mx, int my,
 	*y = nearest_multiple((float)my, *h);
 }
 
+static void
+drag_axis(int *axis, int m, int p, float speed)
+{
+	*axis -= (m - p) * speed;
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -309,8 +318,9 @@ main(int argc, char* argv[])
 	last = 0;
 	dt	 = 0.f;
 
+	bool quit = false;
 	// Application main loop
-	for (;;) {
+	while (!quit) {
 		SDL_Event				 e;
 		int							 mx;
 		int							 my;
@@ -320,8 +330,7 @@ main(int argc, char* argv[])
 		struct SDL_FRect rect;
 
 		if (SDL_PollEvent(&e)) {
-			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
-																 e.window.event == SDL_WINDOWEVENT_CLOSE))
+			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&	e.window.event == SDL_WINDOWEVENT_CLOSE))
 				break;
 
 			if (e.type == SDL_KEYUP) {
@@ -339,9 +348,52 @@ main(int argc, char* argv[])
 					case SDLK_LALT: {
 						altmod = true;
 					} break;
-				}
 
-				if (e.type == SDL_KEYDOWN && e.key.keysym.sym > SDLK_0 &&
+					case SDLK_q: {
+						quit = true;
+				     	} break;
+
+#if 0
+					/* -- Keyboard Navigation -- */
+					/* -- Up -- */
+					case NAV_KEY_U1:
+					case NAV_KEY_U2: {
+						drag_axis(&stat.y, py + 1, py, g_nav_inc_y);
+				     	} break;
+					/* -- Down -- */
+					case NAV_KEY_D1:
+					case NAV_KEY_D2: {
+						drag_axis(&stat.y, py - 1, py, g_nav_inc_y);
+				     	} break;
+					/* -- Left -- */
+					case NAV_KEY_L1:
+					case NAV_KEY_L2: {
+						drag_axis(&stat.x, px + 1, px, g_nav_inc_x);
+				     	} break;
+					/* -- Right -- */
+					case NAV_KEY_R1:
+					case NAV_KEY_R2: {
+						drag_axis(&stat.x, px - 1, px, g_nav_inc_x);
+				     	} break;
+#endif
+				}
+				/* This could probably be simplified (see switch statement above),
+				 * but this does make customization far easier for the end user,
+				 * and this code is still fairly obvious) */
+				for (int x = 0; x < 4; ++x) {
+					for (int y = 0; y < DRAG_NKEYSETS; ++y) {
+						if (e.key.keysym.sym == drag_keys[y][x]) {
+							switch (x) {
+								case 0: { drag_axis(&stat.y, py + 1, py, g_nav_inc_y); } break;
+								case 1: { drag_axis(&stat.y, py - 1, py, g_nav_inc_y); } break;
+								case 2: { drag_axis(&stat.x, px + 1, px, g_nav_inc_x); } break; 
+								case 3: { drag_axis(&stat.x, px - 1, px, g_nav_inc_x); } break;
+								default: break;
+							}
+						}
+					}
+				}
+				if (e.key.keysym.sym > SDLK_0 &&
 						e.key.keysym.sym <= SDLK_9) {
 					int dispidx;
 
@@ -364,8 +416,8 @@ main(int argc, char* argv[])
 			if (e.type == SDL_MOUSEWHEEL) {
 				// Zoom in
 				if (!altmod) {
-					gzw = clamped(gzw + e.wheel.y * (stat.w * 0.03), 0, stat.w / 2 - 3);
-					gzh = clamped(gzh + e.wheel.y * (stat.h * 0.03), 0, stat.h / 2 - 3);
+					gzw = clamped(gzw + e.wheel.y * (stat.w * g_zoom_speed), 0, stat.w / 2 - 3);
+					gzh = clamped(gzh + e.wheel.y * (stat.h * g_zoom_speed), 0, stat.h / 2 - 3);
 
 					// Store time and expected time for zoom to be finalized
 					zt	= dt;
@@ -389,9 +441,21 @@ main(int argc, char* argv[])
 		b = SDL_GetMouseState(&mx, &my);
 
 		// When dragging, move around the focus area
+#if 0
+		/* No other mouse button will work, wtf? */
+		for (int i = 0; i < DRAG_NBUTTONS; ++i) {
+			if (SDL_BUTTON(b) == (1 << drag_buttons[i]) && (px != -1) && (py != -1)) {
+				drag_axis(&stat.x, mx, px, g_drag_speed_x);
+				drag_axis(&stat.y, my, py, g_drag_speed_y);
+
+				hold.y = -1.f;
+			}
+			fprintf(stdout, "%i\n", drag_buttons[i]);
+		}
+#endif /* 0 */
 		if (SDL_BUTTON(b) == (1 << SDL_BUTTON_RIGHT) && (px != -1) && (py != -1)) {
-			stat.x -= (mx - px);
-			stat.y -= (my - py);
+			drag_axis(&stat.x, mx, px, g_drag_speed_x);
+			drag_axis(&stat.y, my, py, g_drag_speed_y);
 
 			hold.y = -1.f;
 		}

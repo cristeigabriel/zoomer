@@ -21,7 +21,9 @@ Run `zoomer -h`
 |Alt + Mouse wheel up/down|Increases/decreases grid alpha|
 |Mouse wheel up/down|Scrolls up/down|
 |Right click + drag left/right/up/down|Drags around focus area|
+|By default, WASD and the arrow keys (can be modified in config.h| Navigate the focus area|
 |1-9|Swap focus area to n-th monitor|
+|q|Quit Zoomer|
 
 # Dependencies
 - libsdl2
