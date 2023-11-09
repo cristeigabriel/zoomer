@@ -1,3 +1,8 @@
 a.out
 image.png
 image.rgba
+config.h
+config.outtakes.h
+*.tmp
+*.temp
+*~
