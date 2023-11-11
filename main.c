@@ -6,17 +6,18 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+/* -- CUSTOM CONFIGURATION -- */
+#include "config.h"
 
 #define DEBUG_IMAGE 0
 
 #define FULLSCREEN_W 0
 #define FULLSCREEN_H 0
 
-#define ZOOM_TIME (0.3f)
-#define GRID_DEFAULT_ALPHA (30)
-
-static float g_zoom_time	= ZOOM_TIME;
-static int	 g_grid_alpha = GRID_DEFAULT_ALPHA;
+static float g_zoom_time  = ZOOM_DEFAULT_TIME;
+static int   g_grid_alpha = DEFAULT_GRID_ALPHA;
 
 struct Zoomer {
 	struct SDL_Window*	 window;
@@ -68,6 +69,9 @@ initialize_window(const char* name, int w, int h)
 														SDL_WINDOWPOS_UNDEFINED, w, h, flag);
 	if (NULL == window)
 		SDL_DIE(window);
+
+	/* Investigating ways to get the currently active monitor */
+//	printf("SDL_GetwindowDisplayIndex: %i", 	SDL_GetWindowDisplayIndex(window));
 
 	return window;
 }
@@ -146,7 +150,7 @@ install_zoomer(struct Zoomer* zoomer, const char* name, int w, int h)
 			unsigned long pixel;
 
 			pixel							 = XGetPixel(image, col, row);
-			zoomer->image[i++] = rgb_to_abgr(pixel, 0xff);
+			zoomer->image[++i] = rgb_to_abgr(pixel, 0xff);
 		}
 	}
 	XFree(image);
@@ -188,38 +192,43 @@ snap_to_grid(const SDL_Rect* stat, const SDL_Rect* dyn, int mx, int my,
 	*y = nearest_multiple((float)my, *h);
 }
 
+static void
+drag_axis(int *axis, int m, int p, float speed)
+{
+	*axis -= (m - p) * speed;
+}
+
 int
 main(int argc, char* argv[])
 {
-	struct Zoomer		zoomer;
-	SDL_Texture*		buffer;
-	int							pitch;
+	struct Zoomer zoomer;
+	SDL_Texture*  buffer;
 	struct SDL_Rect stat;
 	struct SDL_Rect dyn;
-	int							disps;
-	int							gzw;
-	int							gzh;
-	int							zw;
-	int							zh;
-	int							px;
-	int							py;
-	int							w;
-	int							h;
-	Uint64					now;
-	Uint64					last;
-	float						dt;
-	float						zt;
-	float						ezt;
-	float						p;
-	int							i;
-	bool						grid;
-	bool						altmod;
+	int    disps;
+	int    gzw;
+	int    gzh;
+	int    zw;
+	int    zh;
+	int    px;
+	int    py;
+	int    w;
+	int    h;
+	int    pitch;
+	Uint64 now;
+	Uint64 last;
+	float  dt;
+	float  zt;
+	float  ezt;
+	float  p;
+	bool   grid;
+	bool   altmod;
 	struct {
 		float y;
 		float p;
 	} hold;
 
-	for (i = 1; i < argc; i++) {
+	for (int i = 1; i < argc; ++i) {
 		const char* arg = argv[i];
 
 		if (*arg != '-')
@@ -279,7 +288,12 @@ main(int argc, char* argv[])
 		SDL_DIE(disps);
 
 	// Default rectangle
-	stat = (SDL_Rect){.x = 0, .y = 0, .w = w, .h = h};
+	int di = SDL_GetWindowDisplayIndex(zoomer.window);
+	for (int i = 0; i < di; ++i) {
+		/* loop through each window beforehand and add their widths to get the offset */
+	}
+
+	stat = (SDL_Rect){.x = 2560 + 1, .y = 0, .w = w, .h = h};
 
 	// Prepare variables for dragging
 	px = -1;
@@ -309,8 +323,9 @@ main(int argc, char* argv[])
 	last = 0;
 	dt	 = 0.f;
 
+	bool quit = false;
 	// Application main loop
-	for (;;) {
+	while (!quit) {
 		SDL_Event				 e;
 		int							 mx;
 		int							 my;
@@ -319,9 +334,10 @@ main(int argc, char* argv[])
 		float						 dh;
 		struct SDL_FRect rect;
 
+		b = SDL_GetMouseState(&mx, &my);
+
 		if (SDL_PollEvent(&e)) {
-			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&
-																 e.window.event == SDL_WINDOWEVENT_CLOSE))
+			if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT &&	e.window.event == SDL_WINDOWEVENT_CLOSE))
 				break;
 
 			if (e.type == SDL_KEYUP) {
@@ -339,9 +355,29 @@ main(int argc, char* argv[])
 					case SDLK_LALT: {
 						altmod = true;
 					} break;
+
+					case SDLK_q: {
+						quit = true;
+				     	} break;
 				}
 
-				if (e.type == SDL_KEYDOWN && e.key.keysym.sym > SDLK_0 &&
+				/* This could probably be simplified, but this does make
+				 * customization far easier for the end user, which should be the
+				 * top priority. */
+				for (int x = 0; x < 4; ++x) {
+					for (int y = 0; y < DRAG_NKEYSETS; ++y) {
+						if (e.key.keysym.sym == drag_keys[y][x]) {
+							switch (x) {
+								case 0: { drag_axis(&stat.y, py + 1, py, g_nav_inc_y); } break;
+								case 1: { drag_axis(&stat.y, py - 1, py, g_nav_inc_y); } break;
+								case 2: { drag_axis(&stat.x, px + 1, px, g_nav_inc_x); } break; 
+								case 3: { drag_axis(&stat.x, px - 1, px, g_nav_inc_x); } break;
+								default: break;
+							}
+						}
+					}
+				}
+				if (e.key.keysym.sym > SDLK_0 &&
 						e.key.keysym.sym <= SDLK_9) {
 					int dispidx;
 
@@ -364,8 +400,20 @@ main(int argc, char* argv[])
 			if (e.type == SDL_MOUSEWHEEL) {
 				// Zoom in
 				if (!altmod) {
-					gzw = clamped(gzw + e.wheel.y * (stat.w * 0.03), 0, stat.w / 2 - 3);
-					gzh = clamped(gzh + e.wheel.y * (stat.h * 0.03), 0, stat.h / 2 - 3);
+
+					/* failed attempt to zoom in to cursor */
+					//int wx, wy;
+					//SDL_GetWindowSize(zoomer.window, &wx, &wy);
+					//
+					//// mouse distance
+					//int mdx = (mx - (wx / 2));
+					//int mdy = (my - (wy / 2));
+					//
+					//stat.x += mdx;
+					//stat.y += mdy;
+
+					gzw = clamped(gzw + e.wheel.y * (stat.w * g_zoom_speed), 0, stat.w / 2 - 3);
+					gzh = clamped(gzh + e.wheel.y * (stat.h * g_zoom_speed), 0, stat.h / 2 - 3);
 
 					// Store time and expected time for zoom to be finalized
 					zt	= dt;
@@ -386,24 +434,36 @@ main(int argc, char* argv[])
 
 		hold.p = p;
 
-		b = SDL_GetMouseState(&mx, &my);
 
 		// When dragging, move around the focus area
+#if 0
+		/* No other mouse button will work, wtf? */
+		for (int i = 0; i < DRAG_NBUTTONS; ++i) {
+			if (SDL_BUTTON(b) == (1 << drag_buttons[i]) && (px != -1) && (py != -1)) {
+				drag_axis(&stat.x, mx, px, g_drag_speed_x);
+				drag_axis(&stat.y, my, py, g_drag_speed_y);
+
+				hold.y = -1.f;
+			}
+			fprintf(stdout, "%i\n", drag_buttons[i]);
+		}
+#endif /* 0 */
 		if (SDL_BUTTON(b) == (1 << SDL_BUTTON_RIGHT) && (px != -1) && (py != -1)) {
-			stat.x -= (mx - px);
-			stat.y -= (my - py);
+			drag_axis(&stat.x, mx, px, g_drag_speed_x);
+			drag_axis(&stat.y, my, py, g_drag_speed_y);
 
 			hold.y = -1.f;
 		}
 
 		// Make sure static rectangle is clamped
 		stat.x =
-			clamped(stat.x, -zw, (zoomer.root_attributes.width - stat.w) + zw - 1);
+			clamped(stat.x, -zw, (zoomer.root_attributes.width - stat.w) + zw);
 		stat.y =
-			clamped(stat.y, -zh, (zoomer.root_attributes.height - stat.h) + zh - 1);
+			clamped(stat.y, -zh, (zoomer.root_attributes.height - stat.h) + zh);
 
 		// Write the buffer to renderer
-		dyn = stat;
+
+		dyn    = stat;
 		dyn.x += zw;
 		dyn.y += zh;
 		dyn.w -= zw * 2;
@@ -413,6 +473,7 @@ main(int argc, char* argv[])
 		// Snap mouse to grid
 		snap_to_grid(&stat, &dyn, mx, my, &rect.x, &rect.y, &rect.w, &rect.h);
 
+		/* grid logic */
 		if (grid) {
 			// Do grid view
 			dw = (float)stat.w / (float)dyn.w;
@@ -425,14 +486,24 @@ main(int argc, char* argv[])
 
 			SDL_SetRenderDrawBlendMode(zoomer.renderer, SDL_BLENDMODE_BLEND);
 			SDL_SetRenderDrawColor(zoomer.renderer, 255, 255, 255, g_grid_alpha);
-			for (i = 1; i < (stat.w / (int)dw); i++) {
-				SDL_RenderDrawLineF(zoomer.renderer, ((float)i * dw), 0.f,
-														(i * (float)dw), (float)stat.h);
+
+			for (int i = 1; i < (stat.w / (int)dw); ++i) {
+				SDL_RenderDrawLineF(
+					zoomer.renderer,
+					((float)i * dw),
+					0.f,
+					(i * (float)dw), (float)stat.h
+				);
 			}
 
-			for (i = 1; i < (stat.h / (int)dh); i++) {
-				SDL_RenderDrawLineF(zoomer.renderer, 0.f, ((float)i * dh),
-														(float)stat.w, ((float)i * dh));
+			for (int i = 1; i < (stat.h / (int)dh); ++i) {
+				SDL_RenderDrawLineF(
+					zoomer.renderer,
+					0.f,
+					((float)i * dh),
+					(float)stat.w,
+					((float)i * dh)
+				);
 			}
 
 // Don't run for now since it's not done
@@ -467,6 +538,9 @@ main(int argc, char* argv[])
 		// Update previous mouse position
 		px = mx;
 		py = my;
+
+		// Give program some breathing time.
+		SDL_Delay( 1 );
 	}
 
 	// Get rid of buffer
@@ -479,8 +553,13 @@ main(int argc, char* argv[])
 
 usage:
 	printf("USAGE: %s <options>\n"
-				 "-h         -- Displays this help and exits.\n"
-				 "-t <float> -- Specifies zoom time.\n",
+				 "-h         -- Displays this help and exits.\n\n"
+				 "-t <float> -- Specifies zoom time.\n"
+				 "How to configure:\n\n"
+				 "config.h is where your personal settings are stored. If config.h"
+				 "doesn't exist, running \'sudo ./build.sh\' will generate a new"
+				 "one using config.def.h as a template. After modifying, run"
+				 "\'sudo ./build.sh\' to rebuild and reinstall Zoomer.",
 				 argv[0]);
 
 	return EXIT_SUCCESS;
